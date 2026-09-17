@@ -1,102 +1,106 @@
-# linux-server-stats
+# nginx-log-analyser
 
-A simple Bash script (`server-stats.sh`) to analyse basic performance stats on any Linux server.
+A simple Bash CLI tool to analyze Nginx access logs and report key traffic statistics.
 
-Built as part of the [roadmap.sh](https://roadmap.sh/projects/server-stats) DevOps projects track.
+Built as part of the [roadmap.sh](https://roadmap.sh/projects/nginx-log-analyser) DevOps projects track.
 
 ## What it does
 
-The script prints:
+Parses a standard Nginx access log (combined log format) and reports:
 
-**Required stats**
-- Total CPU usage
-- Total memory usage (Free vs Used, with percentage)
-- Total disk usage (Free vs Used, with percentage)
-- Top 5 processes by CPU usage
-- Top 5 processes by memory usage
-
-**Stretch stats**
-- Uptime & load average
-- OS version
-- Logged in users
-- Failed login attempts (requires `sudo`)
+- Top 5 IP addresses with the most requests
+- Top 5 most requested paths
+- Top 5 response status codes
+- Top 5 user agents
 
 ## Requirements
 
-- Any Linux server/distro (uses standard tools: `top`, `free`, `df`, `ps`, `uptime`, `who`, `lastb`)
-- Bash shell
+- Any Linux/Unix system with Bash
+- Standard tools: `awk`, `sort`, `uniq` (pre-installed on virtually every distro)
+- An Nginx access log file in combined log format
 
 ## Usage
 
 Clone the repo and make the script executable:
 
 ```bash
-git clone https://github.com/<your-username>/linux-server-stats.git
-cd linux-server-stats
-chmod +x server-stats.sh
+git clone https://github.com/<your-username>/nginx-log-analyser.git
+cd nginx-log-analyser
+chmod +x nginx-log-analyser.sh
 ```
 
-Run it:
+Run it against a log file:
 
 ```bash
-./server-stats.sh
-```
-
-To also see failed login attempts, run with `sudo` (this section requires root access to read `/var/log/btmp`):
-
-```bash
-sudo ./server-stats.sh
+./nginx-log-analyser.sh access.log
 ```
 
 ## Example Output
 
 ```
-=== Server Performance Stats ===
+Nginx Log Analyser
+Analyzing: access.log
 
---- CPU Usage ---
-CPU Usage: 12.30%
+==============================
+Top 5 IP addresses with the most requests
+==============================
+  45 178.128.94.113
+  12 142.93.136.176
+   3 86.134.118.70
 
---- Memory Usage ---
-Used: 2140MB / 7930MB (26.98%)
-Free: 3200MB
+==============================
+Top 5 most requested paths
+==============================
+ 234 /api/users
+ 187 /home
+  56 /login
 
---- Disk Usage ---
-Used: 20G / 50G (42%)
-Free: 28G
+==============================
+Top 5 response status codes
+==============================
+ 450 200
+  23 404
+   5 500
 
---- Top 5 Processes by CPU Usage ---
-  PID COMMAND         %CPU
- 1234 chrome          15.2
-  567 node             8.4
-  ...
-
---- Top 5 Processes by Memory Usage ---
-  PID COMMAND         %MEM
- 1234 chrome          12.3
-  567 node             6.1
-  ...
-
---- Uptime & Load Average ---
-up 3 days, 2 hours
-Load Average: 1.99, 1.76, 1.56
-
---- OS Version ---
-Ubuntu 22.04.3 LTS
-
---- Logged In Users ---
-2
-ahmed    pts/0        2026-09-15 10:12 (192.168.1.5)
-root     pts/1        2026-09-15 11:30 (192.168.1.8)
-
---- Failed Login Attempts ---
-Run this script with sudo to see failed login attempts.
+==============================
+Top 5 user agents
+==============================
+ 312 Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+  45 curl/7.68.0
+  10 DigitalOcean Uptime Probe 0.22.0
 ```
 
-## Notes
+## Error Handling
 
-- Memory "used" figures may look higher than expected because Linux caches aggressively (`buff/cache`); this is normal and not a problem.
-- Load average should be interpreted relative to the number of CPU cores (`nproc`). A load equal to the core count means the CPU is fully busy with no processes waiting.
-- A high failed-login count on `lastb` can indicate a brute-force attempt against SSH — consider `fail2ban`, disabling password auth, or disabling root login if this number is unexpectedly large.
+| Scenario | Behavior |
+|---|---|
+| No log file argument provided | Prints usage error, exits with code 1 |
+| Provided path is not a valid file | Prints error, exits with code 1 |
+
+## How It Works (Internals)
+
+A standard Nginx combined log line looks like:
+
+```
+178.128.94.113 - - [16/Sep/2026:14:30:12 +0000] "GET /api/users HTTP/1.1" 200 512 "-" "Mozilla/5.0"
+```
+
+- **IP address** — `awk '{print $1}'` (first space-separated field)
+- **Requested path** — `awk '{print $7}'` (7th space-separated field, inside the request line)
+- **Status code** — `awk '{print $9}'` (9th space-separated field)
+- **User agent** — `awk -F'"' '{print $6}'` (split on double-quotes instead of spaces, since user agent strings contain spaces; the 6th quoted segment is the user agent)
+
+Every stat follows the same pipeline:
+
+```
+awk '...' file | sort | uniq -c | sort -rn | head -5
+```
+
+1. `awk` extracts the relevant field from every line
+2. `sort` groups identical values together (required before `uniq` can count them)
+3. `uniq -c` collapses duplicates and counts occurrences
+4. `sort -rn` sorts numerically, highest count first
+5. `head -5` keeps only the top 5
 
 ## Author
 
