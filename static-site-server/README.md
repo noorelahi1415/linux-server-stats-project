@@ -1,9 +1,9 @@
 # static-site-server
 
 A static HTML/CSS website served via Nginx on a remote Linux server, deployed using an `rsync`-based `deploy.sh` script.
-# static-site-server
-**Project URL:** https://roadmap.sh/projects/static-site-server
+
 Built as part of the [roadmap.sh](https://roadmap.sh/projects/static-site-server) DevOps projects track.
+
 > ⚠️ **Note:** This repository intentionally contains no real server IP address. `<server-ip>` is used as a placeholder throughout.
 
 ---
